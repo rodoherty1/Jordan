@@ -3,16 +3,18 @@ import scalaz._
 import Scalaz._
 import scalaz.stream._
 
-object JordanTest extends App {
-
+object PiggyPrototype extends App {
 
   type Rule = String => List[String]
+
+  val endOfRecord = "END OF RECORD"
+  val emptyField  = ""
 
   val parseA: Rule = line => {
     val regex = "(.*)@(.*)".r
     line match {
       case regex(label, price) => List(label, price)
-      case _                   => List("", "")
+      case _                   => List(emptyField, emptyField)
     }
   }
 
@@ -20,15 +22,15 @@ object JordanTest extends App {
     val regex = "(.*) [xX] (.*)".r
     line match {
       case regex(quantity, code) => List(quantity, code)
-      case _                     => List("", "")
+      case _                     => List(emptyField, emptyField)
     }
   }
 
   val parseC: Rule = line => {
     val regex = ".*(http.*)".r
     line match {
-      case regex(url) => List(url, "END OF RECORD")
-      case _          => List("", "END OF RECORD")
+      case regex(url) => List(url, endOfRecord)
+      case _          => List(emptyField, endOfRecord)
     }
   }
 
@@ -38,6 +40,9 @@ object JordanTest extends App {
     parseC -> parseA
   )
 
+  /*
+   TODO: Need to replace this mutable variable with an immutable value
+   */
   var latestRule = parseA
 
   def getRecord(line: String): Process0[String] = {
@@ -45,24 +50,24 @@ object JordanTest extends App {
     latestRule = rules(latestRule)
 
     record match {
-      case h :: t if h.isEmpty => Process.emitAll(record) ++ getRecord(line)
-      case _                   => Process.emitAll(record)
+      case "" :: t => Process.emitAll(record) ++ getRecord(line)
+      case _       => Process.emitAll(record)
     }
   }
 
   def toCsvRow(word: String): String = {
     word match {
       case "END OF RECORD" => "\n"
-      case _ => word.trim + ","
+      case _               => word.trim + ","
     }
   }
 
-  println(io.linesR("pigsback.txt")
+  io.linesR("piggy.txt")
     .filter(line => !line.isEmpty)
     .flatMap(getRecord)
     .map(toCsvRow)
     .pipe(text.utf8Encode)
-    .to(io.fileChunkW("pigsback.csv"))
+    .to(io.fileChunkW("piggy.csv"))
     .run
-    .run)
+    .run
 }
