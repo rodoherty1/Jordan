@@ -1,4 +1,4 @@
-name := "Prototype for Jordan"
+name := "MailParser"
 
 version := "1.0"
 
